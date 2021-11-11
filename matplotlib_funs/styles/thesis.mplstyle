@@ -1,0 +1,42 @@
+font.family:  serif
+font.style:   normal
+font.variant: normal
+font.weight:  normal
+font.stretch: normal
+font.size:    11.0
+
+text.usetex: True
+
+text.latex.preamble : \usepackage{amssymb} \usepackage{mathtools} \usepackage{bm} \usepackage{commath} \usepackage{braket}
+
+font.serif: CMU Serif
+
+legend.fontsize: medium
+axes.labelsize : medium
+xtick.labelsize : medium
+ytick.labelsize : medium
+
+figure.titlesize : large
+
+figure.figsize : 6.102, 3.771
+figure.dpi : 144
+
+savefig.bbox : tight
+savefig.pad_inches : 0.05
+
+mathtext.fontset: cm 
+
+mathtext.bf:  sans:bold
+mathtext.cal: cursive
+mathtext.it:  sans:italic
+mathtext.rm:  sans
+mathtext.sf:  sans
+mathtext.tt:  monospace
+mathtext.fallback: cm  # Select fallback font from ['cm' (Computer Modern), 'stix'
+                        # 'stixsans'] when a symbol can not be found in one of the
+                        # custom math fonts. Select 'None' to not perform fallback
+                        # and replace the missing character by a dummy symbol.
+mathtext.default: it  # The default font to use for math.
+                       # Can be any of the LaTeX font names, including
+                       # the special name "regular" for the same font
+                       # used in regular text.
