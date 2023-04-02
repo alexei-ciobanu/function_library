@@ -5,8 +5,8 @@ import matplotlib.style
 
 import matplotlib.pyplot as plt
 
-import general_funs as gf
-import numerical_funs as nf
+from .. import general_funs as gf
+from .. import numerical_funs as nf
 import numpy as np
 
 from .colors import apply_colormap
@@ -173,29 +173,50 @@ def add_colorbar(ax, im, label=''):
     cb.set_label(label)
     return cb
 
-def imshow_complex(im, axs=None, use_plt=True, label='', title='', mode='re:im', size=4, sep=2.8, aspect='auto', interpolation='nearest'):
+def imshow_complex(x=None, y=None, z=None, axs=None, use_plt=True, label='', title='', mode='re:im', size=4, sep=2.8, wspace=0.3, clim_re=(None, None), clim_im=(None, None), xlabel='', ylabel='', aspect='auto', interpolation='antialiased'):
     if axs is None:
         if use_plt:
             fig, axs = plt.subplots(1, 2, figsize=(size*sep, size))
         else:
             fig, axs = subplots(1, 2, figsize=(size*sep, size))
+    if y is None and z is None:
+        # imitate behaviour of regular imshow
+        z = x
+        z_shape = np.shape(z)
+        x = np.arange(z_shape[1])
+        y = np.arange(z_shape[0])
+    elif y is not None and z is None:
+        raise Exception('not enough arguments')
+    if x.shape[0] != z.shape[1]:
+        raise Exception(f'z shape {z.shape} not compatible with x shape {x.shape}')
+    if y.shape[0] != z.shape[0]:
+        raise Exception(f'z shape {z.shape} not compatible with y shape {y.shape}')
+    xl, xu = x[0], x[-1]
+    yl, yu = y[0], y[-1]
+    
     fig = axs[0].figure
     if mode == 're:im':
-        im0 = axs[0].imshow(np.real(im), label=label, aspect=aspect, interpolation=interpolation)
-        im1 = axs[1].imshow(np.imag(im), label=label, aspect=aspect, interpolation=interpolation)
+        im0 = axs[0].imshow(np.real(z), extent=[xl,xu,yl,yu], label=label, aspect=aspect, interpolation=interpolation)
+        im1 = axs[1].imshow(np.imag(z), extent=[xl,xu,yl,yu], label=label, aspect=aspect, interpolation=interpolation)
         cb0 = add_colorbar(axs[0], im0)
         cb1 = add_colorbar(axs[1], im1)
         cb0.set_label('Real part')
         cb1.set_label('Imaginary part')
+        im0.set_clim(*clim_re)
+        im1.set_clim(*clim_im)
     elif mode == 'abs:deg':
-        im0 = axs[0].imshow(np.abs(im), label=label, aspect=aspect, interpolation=interpolation)
-        im1 = axs[1].imshow(np.angle(im, deg=True), label=label, aspect=aspect, interpolation='nearest', cmap='twilight')
+        im0 = axs[0].imshow(np.abs(z), extent=[xl,xu,yl,yu], label=label, aspect=aspect, interpolation=interpolation)
+        im1 = axs[1].imshow(np.angle(z, deg=True), extent=[xl,xu,yl,yu], label=label, aspect=aspect, interpolation='nearest', cmap='twilight')
         cb0 = add_colorbar(axs[0], im0)
         cb1 = add_colorbar(axs[1], im1)
         cb0.set_label('Absolute value')
         cb1.set_label('Phase [deg]')
+    axs[0].set_xlabel(xlabel)
+    axs[1].set_xlabel(xlabel)
+    axs[0].set_ylabel(ylabel)
     fig.suptitle(title)
-    return axs
+    fig.subplots_adjust(wspace=wspace)
+    return fig, axs
 
 def matshow(M, ax=None):
     if ax is None:
@@ -238,7 +259,7 @@ def bare_figure_axes(*args, **kwargs):
     fig.add_axes(ax)
     return fig, ax
 
-def subplots(nrows=1, ncols=1, figsize=None, figscale=[8.1, 5], sharex=False, sharey=False, squeeze=True, subplot_kw=None, gridspec_kw=None, use_plt=True, **fig_kw):
+def subplots(nrows=1, ncols=1, figsize=None, figscale=[8.1, 5], sharex=False, sharey=False, squeeze=True, subplot_kw=None, gridspec_kw=None, use_plt=True, wspace=0.25, hspace=0.25, **fig_kw):
     '''
     Clone of plt.subplots for when you don't want to use plt because you suspect it's buggy and slow.
     
@@ -251,6 +272,8 @@ def subplots(nrows=1, ncols=1, figsize=None, figscale=[8.1, 5], sharex=False, sh
     else:
         fig = mpl.figure.Figure(figsize=figsize, **fig_kw)
         ax = fig.subplots(nrows=nrows, ncols=ncols, sharex=sharex, sharey=sharey, squeeze=squeeze, subplot_kw=subplot_kw, gridspec_kw=gridspec_kw)
+    
+    fig.subplots_adjust(wspace=wspace, hspace=hspace)
     return fig, np.atleast_1d(ax)
 
 def subplots_square(*args, **kwargs):
@@ -343,8 +366,9 @@ def savefig_timestamped(fig, *args, timestamp=None, **kwargs):
     else:
         fig.savefig(im_name, *args[1:], **kwargs)
 
-def thesis_savefig(fig, figpath, /, scale=1.0, *args, **kwargs):
-    thesis_figsize(fig, scale)
+def thesis_savefig(fig, figpath, /, resize=True, scale=1.0, *args, **kwargs):
+    if resize:
+        thesis_figsize(fig, scale)
     figpath = Path(figpath).absolute()
     for ext in ['.png', '.pdf']:
         full_path = figpath.with_suffix(ext)
