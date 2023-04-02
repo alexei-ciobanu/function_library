@@ -13,9 +13,8 @@ import numpy as np
 import scipy.interpolate
 import networkx as nx
 
-import graph_funs as grf
-import general_funs as gef
-import new_types
+from .. import graph_funs as grf
+from .. import general_funs as gef
 
 class Id:
     def __call__(self, x):
@@ -345,7 +344,7 @@ def benchmark_adaptive(f, args=None, kwargs=None, time_budget=0.1, minruns=1, ma
     if sort:
         dts = np.sort(dts)
     if summarize:
-        summary = new_types.Namespace()
+        summary = types.SimpleNamespace()
         summary.data = dts
         summary.runs = len(dts)
         summary.mean = np.mean(dts)
@@ -376,7 +375,7 @@ def benchmark_fixed(f, args=None, kwargs=None, Nruns=100, progress=False, sort=F
     if sort:
         dts = np.sort(dts)
     if summarize:
-        summary = new_types.Namespace()
+        summary = types.SimpleNamespace()
         summary.data = dts
         summary.runs = len(dts)
         summary.mean = np.mean(dts)
@@ -405,7 +404,7 @@ def time_complexity_benchmark(f=None, f_build=None, Ns=None, maxruns=None, singl
         else:
             build_time = np.nan
             runthis = lambda: f(N)
-        dt = dgf.debug.benchmark_adaptive(runthis, maxruns=maxruns, time_budget=single_run_budget)
+        dt = benchmark_adaptive(runthis, maxruns=maxruns, time_budget=single_run_budget)
         
         if progress:
             inplace_print(f'run {i:4d} | N {N:4d} | {build_time=:=.3g} | {dt.min=:=.3g}')

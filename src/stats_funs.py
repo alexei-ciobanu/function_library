@@ -10,63 +10,7 @@ import functools
 import sys
 import os
 
-import general_funs as gf
-
-def multivariate_normal(x_vec, mu_vec, covar_mat, normalize=True, optimized=True, debug=False):
-    '''
-    Example:
-    wx = 1
-    wy = 1.2
-    wz = 0.8
-    wxy, wxz, wyz = [0.3, 0.4, 0.55]
-    
-    x = np.linspace(-1,1,100)*5*wx
-    y = np.linspace(-1,1,99)*5*wx
-    z = np.linspace(-1,1,98)*5*wx
-    
-    covar_mat1 = np.array([[wx**2]])
-    covar_mat2 = np.array([[wx**2, wxy],[wxy ,wy**2]])
-    covar_mat3 = np.array([[wx**2, wxy, wxz], [wxy, wy**2, wyz], [wxy, wy**2, wz**2]])
-
-    # 1D
-    g1 = multivariate_normal([x], [0], covar_mat1)
-    g1.shape == (100,)
-    
-    # 2D
-    g2 = multivariate_normal([x, y], [0, 0], covar_mat2)
-    g2.shape == (100, 99)
-    
-    # 3D
-    g3 = multivariate_normal([x, y, z], [0, 0, 0], covar_mat3)
-    g3.shape == (100, 99, 98)
-    
-    ''' 
-    k = len(mu_vec)
-    xg_list = np.meshgrid(*x_vec)
-    xg_vec = insert_singletons(np.array(xg_list), 0).T
-    mug_vec = insert_singletons(np.array(mu_vec), [0]*k+[-1])
-    if debug:
-        print('xg_vec ', xg_vec.shape)
-        print('mug_vec ', mug_vec.shape)
-    x_mug_vec = xg_vec - mug_vec
-    
-    if normalize:
-        norm = np.sqrt((2*np.pi)**k * np.linalg.det(covar_mat))
-    else:
-        norm = 1
-    
-    if debug:
-        print('covar_mat@x_mug_vec ', (covar_mat@x_mug_vec).shape)
-        print('matmul_transpose(x_mug_vec)@covar_mat@x_mug_vec ', (matmul_transpose(x_mug_vec)@covar_mat@x_mug_vec).shape)
-    
-    # np.linalg.solve should be faster and more numerically stable
-    if optimized:
-        out = np.squeeze(np.exp(-0.5*matmul_transpose(x_mug_vec)@np.linalg.solve(covar_mat, x_mug_vec))/norm)
-        # return an array where the axes are in the same orientation as the input
-        return matmul_transpose(out).T
-    else:
-        out = np.squeeze(np.exp(-0.5*matmul_transpose(x_mug_vec)@np.linalg.inv(covar_mat)@x_mug_vec)/norm)
-        return matmul_transpose(out).T
+from . import general_funs as gf
 
 def covar_to_corr(M):
     M_c = np.copy(M)
@@ -78,12 +22,12 @@ def covar_to_corr(M):
 @functools.wraps(np.histogram)
 def histogram(*args, **kwargs):
     '''identical to numpy histogram but instead return the 
-    center of the bins instead the edges so you can plot the histogram'''
+    center of the bins instead the edges so you can plot the bloody histogram'''
     f,bins = np.histogram(*args, **kwargs)
-    x = bins[1:] - (bins[1] - bins[0])/2
+    x = (bins[1:] + bins[:-1])/2
     return x,f
     
-def kde(X,x,h=None):
+def kde(X, x, h=None):
     X_sort = np.sort(X)
     X_sort_grad = np.diff(X_sort)
     X_sort_grad_med = np.median(X_sort_grad)
@@ -101,7 +45,7 @@ def kde(X,x,h=None):
     phi = lambda x: gf.gaussian(x,0,1)
     kernel = lambda x,h: np.mean(phi((x-X)/h)/h)
     kpdf = np.vectorize(lambda x,h: kernel(x,h))
-    f4 = kpdf(x,h)
+    f4 = kpdf(x, h)
     
     dx = x[1] - x[0]
     
@@ -119,14 +63,15 @@ def char_to_pdf(X, ts, xs, w=lambda x: np.ones(len(x))):
     pdf = 1/(2*np.pi) * np.sum( w(ts)*char*np.exp(1j*np.multiply.outer(xs, ts)), axis=1 ) * dt
     return pdf
     
-def char_to_pdf_ifft(X,ts, w= lambda x: np.ones(len(x))):
+def char_to_pdf_ifft(X, ts, w= lambda x: np.ones(len(x))):
     char = char_fun(X,ts)
+    dt = ts[1] - ts[0]
     
-    freq = np.fft.fftshift(scipy.fftpack.fftfreq(len(ts),dt)*2*np.pi)
+    freq = np.fft.fftshift(scipy.fftpack.fftfreq(len(ts), dt)*2*np.pi)
     df = freq[1] - freq[0]
     
     pdf = np.fft.fftshift(np.abs(np.fft.ifft(w(ts)*char))) / df
-    return freq,pdf
+    return freq, pdf
     
 def phi(d, niter=30, scipy_root_find=False):
     '''

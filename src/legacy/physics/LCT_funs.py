@@ -1,8 +1,11 @@
 import numpy as np
 import scipy.special
+import pylops
+
 import numerical_funs as nf
 import optics_funs as of
 import general_funs as gef
+from debug_funs import inplace_print
 
 class LCT_operator:
     def __init__(self,x1s=None,x2s=None,M=None,type=None,lam=1064e-9,op_list=None):
@@ -399,6 +402,7 @@ def LCT1D_hq(x1s, x2s=None, M_abcd=None, lam=1064e-9):
     if x2s is None:
         x2s = x1s
     
+    sqrt = np.sqrt
     A,B,C,D = np.complex128(M_abcd).ravel()
     
     dx1 = x1s[1] - x1s[0]
@@ -406,11 +410,11 @@ def LCT1D_hq(x1s, x2s=None, M_abcd=None, lam=1064e-9):
     x1l = x1s - dx1/2
     x1u = x1s + dx1/2
     
-    ea = scipy.special.erfi((-1)**(3/4)*np.sqrt(np.pi)*(np.add.outer(-x2s, A*x1l))/(np.sqrt(A)*np.sqrt(B*lam)))
-    eb = scipy.special.erfi((-1)**(3/4)*np.sqrt(np.pi)*(np.add.outer(-x2s, A*x1u))/(np.sqrt(A)*np.sqrt(B*lam)))
+    ea = scipy.special.erfi((-1)**(3/4)*np.sqrt(np.pi)*(np.add.outer(-x2s, A*x1l))/(sqrt(A)*sqrt(B*lam)))
+    eb = scipy.special.erfi((-1)**(3/4)*np.sqrt(np.pi)*(np.add.outer(-x2s, A*x1u))/(sqrt(A)*sqrt(B*lam)))
     t1 = np.exp((1j*np.pi*x2s[:,None]**2)/(A*B*lam)) 
     t2 = np.exp(-1j*np.pi*D*x2s[:,None]**2/(B*lam)) 
-    consts = (-1)**(1/4) * np.sqrt(B*lam) / (2*np.sqrt(A)) * np.sqrt(1j/(B*lam))
+    consts = (-1)**(1/4) * sqrt(B*lam) / (2*sqrt(A)) * sqrt(1j/(B*lam))
     
     L = consts*t1*t2*(ea-eb)
     return L
@@ -610,7 +614,7 @@ def LCT1D_lpl3(x1s, x2s, M_abcd, lam=1064e-9):
     by carefully applying the appropriate scaling factors that result from commuting out
     the DFT related scaling operators. 
     
-    Supports dynamic resizing of input/ouput grids by applying the apropriate scaling ABCD
+    Supports dynamic resizing of input/output grids by applying the appropriate scaling ABCD
     to the output to match the requested output grid.
     
     TODO:
@@ -955,6 +959,106 @@ def DFRT(N, a):
     Fa = nf.DFRT(N, a) * np.exp(1j*np.pi/4*a)
     return Fa
 
+def FRT_(N, a=1):
+    '''
+    This implementation of the FRT is only valid for fractional order
+    a \in [-1,1].
+    
+    This is sufficient and can be extended to all fractional orders by
+    using a combination of wrapping around fourth orders, using FT 
+    offset, and parity offset.
+    
+    The planewave LCT phase is taken out of here, because it's more
+    convenient to add it back in after extending it to all fractional
+    orders.
+    '''
+    def CM_kernel(N, c):
+        n = (np.arange(N) - (N-1)/2)/np.sqrt(N)
+        d = np.exp(1j*np.pi * c * n**2)
+        return np.diag(d)
+
+    Na = N
+    if Na % 2 == 0:
+        Nb = 2*Na
+    else:
+        Nb = 2*Na - 1
+    
+    Nzf = (Nb - Na)/2
+    Nz = int(Nzf)
+    
+    Zp = pylops.Pad(Na, (Nz, Nz)).todense()
+    Fa = nf.xft_kernel(Na)
+    Fb = nf.xft_kernel(Nb)
+    iFb = np.conj(Fb).T
+    
+    Ksu = iFb@Zp@Fa
+    Ksd = Ksu.T
+    
+    # print(Ksu.shape)
+
+    phi = a*np.pi/2
+    tan_phi = np.tan(phi/2)
+    sin_phi = np.sin(phi)
+    
+    s = Nb/Na # s == 2 if Na even and very close to 2 if Na odd
+    
+    # print(Nb, Na, s)
+
+    Q1 = CM_kernel(Nb, tan_phi/s)
+    Q2 = CM_kernel(Nb, sin_phi*s)
+    # Q3 = CM_kernel(Nb, tan_phi/s)
+    Q3 = Q1
+    
+    sclr = np.exp(-1j*a*np.pi/4)
+    # print(a)
+    
+    R = Ksd@Q3@iFb@Q2@Fb@Q1@Ksu * sclr
+    
+    return R
+
+def FRT(N, a=1, phase='LCT'):
+    def sign_mod(x, a):
+        x = np.asarray(x)
+        s = (x > 0).astype(int)*2 - 1
+        y = np.abs(x) % a
+        y *= s
+        return y
+    
+    a = sign_mod(a, 4)
+    
+    if phase == 'LCT':
+        sclr = np.exp(1j*a*np.pi/4)
+    else:
+        sclr = 1
+    
+    if a >= 2:
+        Po = pylops.Flip(N)
+        a = a - 2
+    elif a <= -2:
+        Po = pylops.Flip(N)
+        a = a + 2
+    else:
+        Po = pylops.Identity(N)
+        
+    if a >= 1:
+        Fo = np.conj(nf.xft_kernel(N)).T
+        a = a - 1
+    elif a <= -1:
+        Fo = nf.xft_kernel(N)
+        a = a + 1
+    else:
+        Fo = pylops.Identity(N)
+        
+    R = FRT_(N, a) * sclr
+    
+    return Po@Fo@R
+
+def pylops_scaling(N, s=1, kind='sinc'):
+    ix1 = np.linspace(-1, 1, N)
+    ix2 = (ix1/s + 1)/2 * (N-1)
+    Op,_ = pylops.signalprocessing.Interp(N, ix2, kind='sinc')
+    return (Op).todense() / np.sqrt(s)
+
 def LCT_iwasawa(xs, M_abcd, lam=1064e-9):
     A,B,C,D = M_abcd.ravel()
     N = len(xs)
@@ -969,7 +1073,7 @@ def LCT_iwasawa(xs, M_abcd, lam=1064e-9):
     LCT = Q@Sc@R
     return LCT
 
-def LCT_iwasawa2(x1s, x2s, M_abcd, lam=1064e-9):
+def LCT_iwasawa2(x1s, x2s, M_abcd, lam=1064e-9, return_suboperators=False):
     N1 = len(x1s)
     N2 = len(x2s)
     if N1 != N2:
@@ -991,7 +1095,45 @@ def LCT_iwasawa2(x1s, x2s, M_abcd, lam=1064e-9):
     R = DFRT(N, a)
     Sc = scaling_numerical(N, m)
     Q = CM_numerical(N, q)
-    LCT = Q@Sc@R * np.sqrt(1/scl)
+
+    if return_suboperators:
+        LCT = Q, Sc * np.sqrt(1/scl), R
+    else:
+        LCT = Q@Sc@R * np.sqrt(1/scl)
+    
+    return LCT
+
+def LCT_iwasawa3(x1s, x2s, M_abcd, lam=1064e-9, return_suboperators=False):
+    '''The most accurate of the Iwasawa kernels
+    '''
+    N1 = len(x1s)
+    N2 = len(x2s)
+    if N1 != N2:
+        raise ValueError('input and output grid must have the same number of points')
+    N = N1
+    
+    dx1 = x1s[1] - x1s[0]
+    dx2 = x2s[1] - x2s[0]
+        
+    scl = dx2/dx1
+    M_scl = of.abcd.scaling(1/scl)
+    
+    A,B,C,D = M_abcd.ravel()
+    xs_scale = hyperdifferential_xs_scale(x1s, lam=lam)
+    s = of.abcd.scaling(np.sqrt(xs_scale))
+    si = of.abcd.scaling(1/np.sqrt(xs_scale))
+    M2 = s@np.array([[A,B],[C,D]])@si
+    M3 = M_scl@M2
+    q,m,a = of.abcd.iwasawa_decomp(M3, return_matrices=False)
+    # print(q,m,a)
+    R = FRT(N, a)
+    Sc = pylops_scaling(N, m)
+    Q = CM_kernel_pei(N, -q)
+
+    if return_suboperators:
+        LCT = Q, Sc * np.sqrt(1/scl), R
+    else:
+        LCT = Q@Sc@R * np.sqrt(1/scl)
     
     return LCT
 
@@ -1025,7 +1167,7 @@ def LCT_cav_scan_2D_separable_sylvester(D_rt_x, D_rt_y_inv, U_inc, r=0.999, phis
     
     for k, phi in enumerate(phis):
         if debug > 0:
-            gef.inplace_print(k)
+            inplace_print(k)
         g = np.exp(-1j*phi/90*np.pi)
         A = 1/np.sqrt(r*g)*D_rt_y_inv
         B = -np.sqrt(r*g)*D_rt_x.T
@@ -1138,7 +1280,7 @@ def hybrid_fox_li(f_rt, shape=None, u_init=None, Nki=200, Nk=100, Nkf=10, debug=
         for i in range(Nk):
             ut = un
             if debug >=1:
-                gef.inplace_print(i)
+                inplace_print(i)
             un = f_rt(ut)
         return un, ut
 
@@ -1158,7 +1300,7 @@ def hybrid_fox_li(f_rt, shape=None, u_init=None, Nki=200, Nk=100, Nkf=10, debug=
         un3 = sparse_iter(f_rt, un2, debug=debug)
         norm1 = np.sum(np.abs(un-un3)**2)
         if debug >= 1:
-            gef.inplace_print(np.abs(norm1 - norm0))
+            inplace_print(np.abs(norm1 - norm0))
         if np.abs(norm1 - norm0) < tol:
             converged = True
         un = un3
@@ -1223,7 +1365,7 @@ def LCT_cav_scan_2D(f_rt, U_inc, r=0.999, phis=[0], debug=1, zero_fundamental_ph
     x0 = U_inc.ravel()
     for i,g in enumerate(gs):
         if debug >= 1:
-            gef.inplace_print(i)
+            inplace_print(i)
         f2 = lambda v: f_cav(v, g, r*np.conj(nf.phase(g0)))
         # g2 = lambda v: g_op(v, g, r*np.conj(nf.phase(g0)))
         L_linop = scipy.sparse.linalg.LinearOperator(matvec=f2, shape=[N*M,N*M])
@@ -1243,7 +1385,8 @@ def LCT_cav_scan_2D(f_rt, U_inc, r=0.999, phis=[0], debug=1, zero_fundamental_ph
 def LCT_cav_scan_2D_eig(f_rt, U_inc, phis=[0], r=0.999, k=50, zero_fundamental_phase=True):
     N,M = np.shape(U_inc)
     phis = np.asarray(phis)
-    eh, ev = LCT_2D_eig_decomp(f_rt, N, M, k=k)
+    print(k)
+    eh, ev = LCT_2D_eig_decomp(f_rt, shape=(N, M), k=k)
     evi = np.linalg.pinv(ev)
     
     if zero_fundamental_phase:

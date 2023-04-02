@@ -18,7 +18,7 @@ import sys
 import functools
 import collections
 
-import numerical_funs as nf
+from .. import numerical_funs as nf
 
 import datetime
 import time
