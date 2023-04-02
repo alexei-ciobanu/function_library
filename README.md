@@ -1,5 +1,8 @@
-# alexei_fun_lib
+# Alexei's Function Library
 
-Mirror of the Adelaide OzGrav gitlab repo 
+# Usage
+1. Clone the repository
+2. Install the requirements with `pip install -r requirements.txt` (TODO)
+3. Install the package with `pip install -e .`
 
-https://gitlab.com/UoAOptics/alexei_fun_lib
+Things will most likely not work since I have not maintained this in a while. Will update the broken parts as I run into them.
