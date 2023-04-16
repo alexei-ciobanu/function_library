@@ -3,7 +3,7 @@ import random
 
 import networkx as nx
 
-import general_funs as gef
+from .. import general_funs as gef
 # from .manipulate import remove_orphans, remove_sources, remove_sinks
 
 def strongly_connected_components(G):
@@ -168,6 +168,9 @@ def get_path_nodes(G):
     return list(path_nodes)
 
 def get_multiedge(G, u, v):
+    '''A multiedge is a list of all discrete edges between nodes u, v in 
+    MultiGraph G.
+    '''
     edges = []
     if isinstance(G, nx.MultiGraph):
         for multi_key in G[u][v]:

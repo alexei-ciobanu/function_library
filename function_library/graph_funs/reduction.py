@@ -8,8 +8,6 @@ from .graph import copy_graph, get_multiedge, get_loop_nodes
 from .fvs import mdfvs_sinkhorn
 from .manipulate import remove_multiedge
 
-from general_funs import flip_dict
-
 def absorb_node_weighted(G, node, node_weight_key='weight', edge_weight_key='weight', inplace=True, debug=False):
     '''Only performs node-preserving product graph reduction rule
     '''

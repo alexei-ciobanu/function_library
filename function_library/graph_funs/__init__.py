@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import random
 import collections
 
-import func_funs as ff
-import general_funs as gef
-from func_funs import list_roll
+from .. import func_funs as ff
+from .. import general_funs as gef
+from ..func_funs import list_roll
 
 from . import drawing, graph, manipulate, fvs, reduction, generate
 

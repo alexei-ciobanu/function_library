@@ -4,7 +4,6 @@ import functools
 
 import networkx as nx
 
-import general_funs as gef
 from .graph import copy_graph, get_sink_nodes, get_source_nodes, get_orphan_nodes, get_path_nodes, get_multiedge
 
 def _absorb_node(G, node, keep_node=False, inplace=True):

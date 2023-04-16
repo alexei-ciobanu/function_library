@@ -3,7 +3,7 @@ import networkx as nx
 
 from .graph import copy_graph
 from .manipulate import remove_orphans
-import general_funs as gef
+from .. import general_funs as gef
 
 def graphviz_draw(
     network=None, 
@@ -226,3 +226,35 @@ def networkx_pygraphviz_draw(A, **kwargs):
     G = nx.drawing.nx_agraph.from_agraph(A)
     layout = get_pygraphviz_node_layout(A)
     return nx.draw(G, pos=layout)
+
+def pygraphviz_draw(G, save=False, prog='dot', format='svg', **kwargs):
+    '''Draw a graph using pygraphviz and IPython
+
+    Parameters
+    ----------
+    G : graph
+       A networkx graph
+
+    Returns
+    -------
+    None
+    
+    Examples
+    --------
+    >>> G = nx.path_graph(4)
+    >>> draw_graph(G)
+    '''
+    import pygraphviz
+    from networkx.drawing import nx_agraph
+    from IPython.display import SVG, display
+    if isinstance(G, pygraphviz.AGraph):
+        A = G
+    elif isinstance(G, (nx.Graph, nx.DiGraph)):
+        A = nx_agraph.to_agraph(G)
+    A.node_attr['label'] = ''
+    if save:
+        A.draw('graph.png', prog=prog, format=format, args='-Grankdir=LR')
+    else:
+        svg = A.draw(prog=prog, format=format, args='-Grankdir=LR')
+        display(SVG(svg))
+    return
