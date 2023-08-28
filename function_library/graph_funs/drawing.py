@@ -227,7 +227,7 @@ def networkx_pygraphviz_draw(A, **kwargs):
     layout = get_pygraphviz_node_layout(A)
     return nx.draw(G, pos=layout)
 
-def pygraphviz_draw(G, save=False, prog='dot', format='svg', **kwargs):
+def pygraphviz_draw(G, save=False, prog='dot', format='svg', graphviz_args='-Grankdir=LR', **kwargs):
     '''Draw a graph using pygraphviz and IPython
 
     Parameters
@@ -253,8 +253,8 @@ def pygraphviz_draw(G, save=False, prog='dot', format='svg', **kwargs):
         A = nx_agraph.to_agraph(G)
     A.node_attr['label'] = ''
     if save:
-        A.draw('graph.png', prog=prog, format=format, args='-Grankdir=LR')
+        A.draw('graph.png', prog=prog, format=format, args=graphviz_args)
     else:
-        svg = A.draw(prog=prog, format=format, args='-Grankdir=LR')
+        svg = A.draw(prog=prog, format=format, args=graphviz_args)
         display(SVG(svg))
     return

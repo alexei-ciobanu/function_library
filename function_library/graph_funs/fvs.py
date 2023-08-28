@@ -3,11 +3,12 @@ import random
 import functools
 
 import numpy as np
+import networkx as nx
 
 from .graph import copy_graph, get_loop_nodes, strongly_connected_components, adjacency_matrix
 from .manipulate import levy_low_reduction
 
-def sinkhorn_transform(A, N_iter=None, return_transform=False, copy=True):
+def sinkhorn_transform(A, N_iter=None, tol=1e-9, return_transform=False, copy=True):
     '''Iterative algorithm for sinkhorn scaling transformation.
     Finds two diagonal matrices D1, D2 such that B = D1@A@D2 is doubly stochastic.
     Doubly stochastic means that each row and column sums to 1.
@@ -30,11 +31,16 @@ def sinkhorn_transform(A, N_iter=None, return_transform=False, copy=True):
         D1 = np.ones(n)
         D2 = np.ones(n)
     At = A.T
-    for i in range(N_iter):
+    res = np.inf
+    ones = np.ones_like(A[0])
+    i = 0
+    while (res > tol) and (i < N_iter):
+        i += 1
         r = np.sum(A, 0)
         A /= r
         c = np.sum(A, 1)
         At /= c
+        res = np.sum(np.abs(r - ones)) + np.sum(np.abs(c - ones))
         if return_transform:
             D1 *= c
             D2 *= r
@@ -193,3 +199,80 @@ def mdfvs_sinkhorn(G, Nsinkhorn=None, fvs=None, copy=True, debug=False):
     fvs.append(v)
     G.remove_node(v)
     return mdfvs_sinkhorn(G, fvs=fvs, copy=False)
+
+def sinkhorn_rank(G, tol=1e-9, maxiter=None):
+    A = nx.to_numpy_array(G)
+    A = A + np.eye(len(A))
+    H = sinkhorn_transform(A, tol=tol, N_iter=maxiter)
+    H_diag = np.diag(H)
+    out_dict = {n:x for n,x in zip(G.nodes, H_diag)}
+    return out_dict
+
+def sinkhorn_fas(G, tol=1e-9, maxiter=None, debug=False):
+    G = G.copy()
+    fas = list()
+    sccs = True
+    jj = 0
+    while sccs:
+        jj += 1
+        sccs = [x for x in nx.strongly_connected_components(G) if len(x) > 1]
+        if debug:
+            print(len(sccs))
+        for scc in sccs:
+            # print(scc)
+            lsc = nx.line_graph(G.subgraph(scc))
+
+            lsc_rank = sinkhorn_rank(lsc, tol=tol, maxiter=maxiter)
+            sc_edge = min(lsc_rank, key=lambda x: lsc_rank[x])
+            
+            # print(sc_edge)
+            fas.append(sc_edge)
+            G.remove_edge(*sc_edge)
+    if debug:
+        print(jj)
+    return fas, G
+
+def pagerank(G, tol=1e-9, maxiter=None):
+    N = len(G.nodes)
+    if maxiter is None:
+        maxiter = int(np.ceil(4*N*np.log(N)))
+    A = nx.adjacency_matrix(G).todense()
+    A = A / (A.sum(axis=0)[None, :] + 1e-16) # make adjacency matrix column stochastic
+    v = np.ones(N)/N
+    diff = np.inf
+    ii = 0
+    while (diff > tol) and (ii < maxiter):
+        ii += 1
+        v_old = v
+        v = A@v
+        diff = np.sum(np.linalg.norm(v_old - v, ord=1))
+    out_dict = {n:x for n,x in zip(G.nodes, v)}
+    return out_dict
+
+def pagerank_fas(G, tol=1e-9, maxiter=None, debug=0):
+    '''
+    Based off of the 2022 paper by Geladaris et al: Computing a Feedback Arc Set Using PageRank 
+    https://arxiv.org/abs/2208.09234
+    '''
+    G = G.copy()
+    fas = list()
+    sccs = True
+    jj = 0
+    while sccs:
+        jj += 1
+        sccs = [x for x in nx.strongly_connected_components(G) if len(x) > 1]
+        if debug:
+            print(len(sccs))
+        for scc in sccs:
+            # print(scc)
+            lsc = nx.line_graph(G.subgraph(scc))
+
+            lsc_rank = pagerank(lsc, tol=tol, maxiter=maxiter)
+            sc_edge = max(lsc_rank, key=lambda x: lsc_rank[x])
+            
+            # print(sc_edge)
+            fas.append(sc_edge)
+            G.remove_edge(*sc_edge)
+    if debug:
+        print(jj)
+    return fas, G
